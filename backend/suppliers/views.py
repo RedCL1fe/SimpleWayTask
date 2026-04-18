@@ -6,7 +6,7 @@ from .serializers import SupplierSerializer
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
-    """CRUD поставщиков с поиском по названию и ИНН."""
+    # CRUD поставщиков с поиском по названию и инн
 
     serializer_class = SupplierSerializer
     search_fields = ["name", "inn"]
@@ -15,5 +15,5 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Supplier.objects.annotate(
-            pricelists_count=Count("pricelist")
+            pricelists_count=Count("pricelists")
         )

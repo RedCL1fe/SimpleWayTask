@@ -1,5 +1,5 @@
 import pandas as pd
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser
@@ -11,15 +11,16 @@ from .serializers import (
     PriceListPositionSerializer,
     PriceListUploadSerializer,
     PriceListParseSerializer,
+    GlobalPriceListPositionSerializer,
 )
 from .tasks import parse_pricelist_task
 
 
 class PriceListViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet для прайс-листов.
-    Поддерживает: list, retrieve, upload, preview, parse, status, positions.
-    """
+    
+    #Вьюсет для прайс-листов.
+    #Поддерживает: list, retrieve, upload, preview, parse, status, positions.
+   
 
     serializer_class = PriceListSerializer
     filterset_fields = ["supplier", "status"]
@@ -32,7 +33,7 @@ class PriceListViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], parser_classes=[MultiPartParser])
     def upload(self, request):
-        """Загрузка Excel-файла прайса."""
+        # Загрузка Excel-файла прайса
         serializer = PriceListUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -49,21 +50,31 @@ class PriceListViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def preview(self, request, pk=None):
-        """Превью: первые 50 строк + список колонок Excel."""
+        # Превью для стабильности таблицы
         pricelist = self.get_object()
+        start_row = int(request.query_params.get("start_row", 1))
+        start_column = int(request.query_params.get("start_column", 1))
 
         try:
             file_path = pricelist.original_file.path
             engine = "xlrd" if file_path.endswith(".xls") else "openpyxl"
-            df = pd.read_excel(file_path, engine=engine, dtype=str, nrows=50)
+            
+            # Всегда читаем от начала файла (Row 1), чтобы таблица не "прыгала"
+            # Ограничиваем только количество строк для предпросмотра
+            df = pd.read_excel(file_path, engine=engine, dtype=str, nrows=50, header=None)
             df = df.fillna("")
 
-            columns = list(df.columns)
+            # Именуем колонки абсолютно: Колонка 1 = A, Колонка 2 = B и т.д.
+            # Теперь шапка таблицы ("Колонка X") будет статичной.
+            columns = [f"Колонка {i+1}" for i in range(len(df.columns))]
             rows = df.values.tolist()
-
+            
             return Response({
                 "columns": columns,
                 "rows": rows,
+                "preview_start_row": 1, 
+                "start_row": start_row,
+                "start_column": start_column,
                 "total_preview_rows": len(rows),
             })
         except Exception as exc:
@@ -74,7 +85,7 @@ class PriceListViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def parse(self, request, pk=None):
-        """Запуск фонового парсинга с маппингом колонок."""
+        # Запуск фонового парсинга с маппингом колонок
         pricelist = self.get_object()
 
         if pricelist.status in ("processing", "done"):
@@ -87,6 +98,8 @@ class PriceListViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         pricelist.mapping_config = serializer.validated_data["mapping"]
+        pricelist.start_row = serializer.validated_data.get("start_row", 1)
+        pricelist.start_column = serializer.validated_data.get("start_column", 1)
         pricelist.status = "processing"
         pricelist.error_message = ""
         pricelist.processed_rows = 0
@@ -103,7 +116,7 @@ class PriceListViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="status")
     def parse_status(self, request, pk=None):
-        """Статус парсинга для polling."""
+        # Статус парсинга для пулинга
         pricelist = self.get_object()
         return Response({
             "status": pricelist.status,
@@ -115,7 +128,7 @@ class PriceListViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def positions(self, request, pk=None):
-        """Список позиций распарсенного прайса."""
+        # Список позиций распарсенного прайса
         pricelist = self.get_object()
         positions = pricelist.positions.select_related("matched_product").all()
 
@@ -126,3 +139,26 @@ class PriceListViewSet(viewsets.ModelViewSet):
 
         serializer = PriceListPositionSerializer(positions, many=True)
         return Response(serializer.data)
+
+
+class PriceListPositionViewSet(viewsets.ReadOnlyModelViewSet):
+   
+    # Глобальный ViewSet для позиций всех прайс-листов
+   
+    serializer_class = GlobalPriceListPositionSerializer
+    filterset_fields = ["price_list__supplier", "article"]
+    search_fields = ["article", "name"]
+    ordering_fields = ["price", "name"]
+    ordering = ["name"]
+
+    def get_queryset(self):
+        other_positions = PriceListPosition.objects.filter(
+            article=OuterRef('article')
+        ).exclude(
+            price_list__supplier_id=OuterRef('price_list__supplier_id')
+        )
+        return PriceListPosition.objects.select_related(
+            "price_list__supplier", "matched_product"
+        ).annotate(
+            has_duplicates=Exists(other_positions)
+        )

@@ -47,13 +47,18 @@ export interface PriceList {
 
 export interface PriceListPosition {
   id: number;
-  row_number: number;
+  row_number?: number;
   article: string;
   name: string;
   price: number;
+  currency: string;
   unit: string;
   matched_product: number | null;
   matched_product_name: string | null;
+  supplier_name?: string;
+  supplier_id?: number;
+  has_duplicates?: boolean;
+  additional_data?: Record<string, string>;
 }
 
 // --- Проекты ---
@@ -106,6 +111,9 @@ export interface EstimatePosition {
 export interface PreviewData {
   columns: string[];
   rows: string[][];
+  preview_start_row: number;
+  start_row: number;
+  start_column: number;
   total_preview_rows: number;
 }
 

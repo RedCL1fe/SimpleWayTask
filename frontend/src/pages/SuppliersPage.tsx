@@ -1,20 +1,25 @@
 import { useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Select, Space,
-  Card, Popconfirm, App, Row, Col, Statistic, Tag,
+  Card, Popconfirm, App, Row, Col, Statistic, Tag, Typography
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined,
-  SearchOutlined, ShopOutlined,
+  SearchOutlined, ShopOutlined, OrderedListOutlined, InfoCircleOutlined, IdcardOutlined
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suppliersApi } from '../api/suppliers';
 import type { Supplier } from '../types';
 
+import { useNavigate } from 'react-router-dom';
+
+const { Text } = Typography;
+
 const currencyLabels: Record<string, string> = {
   RUB: '₽ Рубль',
   USD: '$ Доллар',
   EUR: '€ Евро',
+  CNY: '¥ Юань',
 };
 
 export default function SuppliersPage() {
@@ -24,6 +29,7 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [infoSupplier, setInfoSupplier] = useState<Supplier | null>(null);
   const [form] = Form.useForm();
 
   const { data, isLoading } = useQuery({
@@ -32,12 +38,22 @@ export default function SuppliersPage() {
     select: (res) => res.data,
   });
 
+  const navigate = useNavigate();
+
   const createMutation = useMutation({
     mutationFn: (values: Partial<Supplier>) => suppliersApi.create(values),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       message.success('Поставщик создан');
       closeModal();
+      
+      Modal.confirm({
+        title: 'Поставщик успешно создан',
+        content: 'Хотите сразу загрузить для него прайс-лист (Excel)?',
+        okText: 'Да, загрузить',
+        cancelText: 'Позже',
+        onOk: () => navigate(`/pricelists?supplier=${res.data.id}`)
+      });
     },
     onError: (err: any) => {
       const detail = err?.response?.data;
@@ -100,7 +116,20 @@ export default function SuppliersPage() {
       title: 'Название',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string) => <strong>{name}</strong>,
+      render: (name: string, record: Supplier) => (
+        <Space>
+          <a onClick={(e) => { e.preventDefault(); navigate(`/pricelists?supplier=${record.id}`); }}>
+            <strong>{name}</strong>
+          </a>
+          <Button 
+            type="text" 
+            size="small" 
+            icon={<InfoCircleOutlined style={{ color: '#64748b' }} />} 
+            onClick={(e) => { e.stopPropagation(); setInfoSupplier(record); }}
+            title="Информация о поставщике"
+          />
+        </Space>
+      ),
     },
     { title: 'ИНН', dataIndex: 'inn', key: 'inn', width: 140 },
     {
@@ -137,15 +166,23 @@ export default function SuppliersPage() {
         <Space>
           <Button
             type="text"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
+            icon={<OrderedListOutlined />}
+            onClick={(e) => { e.stopPropagation(); navigate(`/pricelists?supplier=${record.id}`); }}
+            title="Перейти к прайс-листу"
           />
-          <Popconfirm
-            title="Удалить поставщика?"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={(e) => { e.stopPropagation(); openEdit(record); }}
+          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <Popconfirm
+              title="Удалить поставщика?"
+              onConfirm={() => deleteMutation.mutate(record.id)}
+            >
+              <Button type="text" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </div>
         </Space>
       ),
     },
@@ -196,6 +233,10 @@ export default function SuppliersPage() {
           dataSource={data?.results}
           rowKey="id"
           loading={isLoading}
+          onRow={(record) => ({
+            onClick: () => navigate(`/pricelists?supplier=${record.id}`),
+            style: { cursor: 'pointer' }
+          })}
           pagination={{
             current: page,
             total: data?.count,
@@ -255,12 +296,60 @@ export default function SuppliersPage() {
                     { value: 'RUB', label: '₽ Рубль' },
                     { value: 'USD', label: '$ Доллар' },
                     { value: 'EUR', label: '€ Евро' },
+                    { value: 'CNY', label: '¥ Юань' },
                   ]}
                 />
               </Form.Item>
             </Col>
           </Row>
         </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <IdcardOutlined style={{ color: '#6366f1' }} />
+            Карточка поставщика
+          </Space>
+        }
+        open={!!infoSupplier}
+        onCancel={() => setInfoSupplier(null)}
+        footer={[
+          <Button key="close" onClick={() => setInfoSupplier(null)}>
+            Закрыть
+          </Button>
+        ]}
+      >
+        {infoSupplier && (
+          <div style={{ marginTop: 16 }}>
+             <Typography.Paragraph>
+               <Text type="secondary" style={{ display: 'block', marginBottom: 2 }}>Название:</Text>
+               <Text strong copyable style={{ fontSize: 16 }}>{infoSupplier.name}</Text>
+             </Typography.Paragraph>
+             <Typography.Paragraph>
+               <Text type="secondary" style={{ display: 'block', marginBottom: 2 }}>ИНН:</Text>
+               <Text strong copyable style={{ fontSize: 16 }}>{infoSupplier.inn}</Text>
+             </Typography.Paragraph>
+             {infoSupplier.contact_person && (
+                <Typography.Paragraph>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: 2 }}>Контактное лицо:</Text>
+                  <Text strong copyable style={{ fontSize: 16 }}>{infoSupplier.contact_person}</Text>
+                </Typography.Paragraph>
+             )}
+             {infoSupplier.phone && (
+                <Typography.Paragraph>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: 2 }}>Телефон:</Text>
+                  <Text strong copyable style={{ fontSize: 16 }}>{infoSupplier.phone}</Text>
+                </Typography.Paragraph>
+             )}
+             {infoSupplier.email && (
+                <Typography.Paragraph>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: 2 }}>Email:</Text>
+                  <Text strong copyable style={{ fontSize: 16 }}>{infoSupplier.email}</Text>
+                </Typography.Paragraph>
+             )}
+          </div>
+        )}
       </Modal>
     </div>
   );

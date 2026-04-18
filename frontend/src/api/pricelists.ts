@@ -17,14 +17,22 @@ export const pricelistsApi = {
     });
   },
 
-  preview: (id: number) =>
-    apiClient.get<PreviewData>(`/pricelists/${id}/preview/`),
+  preview: (id: number, startRow?: number, startColumn?: number) =>
+    apiClient.get<PreviewData>(`/pricelists/${id}/preview/`, { 
+        params: { 
+            start_row: startRow,
+            start_column: startColumn 
+        } 
+    }),
 
-  parse: (id: number, mapping: Record<string, string>) =>
-    apiClient.post(`/pricelists/${id}/parse/`, { mapping }),
+  parse: (id: number, mapping: Record<string, string>, startRow?: number, startColumn?: number) =>
+    apiClient.post(`/pricelists/${id}/parse/`, { mapping, start_row: startRow, start_column: startColumn }),
 
   status: (id: number) =>
     apiClient.get<ParseStatus>(`/pricelists/${id}/status/`),
+
+  globalPositions: (params?: Record<string, string | number>) =>
+    apiClient.get<PaginatedResponse<PriceListPosition>>(`/pricelists/positions/`, { params }),
 
   positions: (id: number, params?: Record<string, string | number>) =>
     apiClient.get<PaginatedResponse<PriceListPosition>>(`/pricelists/${id}/positions/`, { params }),

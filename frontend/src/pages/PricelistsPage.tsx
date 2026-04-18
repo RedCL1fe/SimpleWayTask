@@ -1,13 +1,16 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Card, Select, Button, Space, Table, Tag, App, Typography, Empty,
+  Card, Select, Button, Space, Table, Tag, App, Typography, Empty, Tabs,
 } from 'antd';
-import { FileExcelOutlined, UploadOutlined } from '@ant-design/icons';
+import { FileExcelOutlined, UploadOutlined, DatabaseOutlined, CloudUploadOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { suppliersApi } from '../api/suppliers';
 import { pricelistsApi } from '../api/pricelists';
 import UploadWizard from '../components/UploadWizard';
-import type { PriceList, Supplier } from '../types';
+import PositionsTable from '../components/PositionsTable';
+import CompareModal from '../components/CompareModal';
+import type { Supplier, PriceList } from '../types';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -16,6 +19,7 @@ const pricelistFields = [
   { key: 'article', label: 'Артикул', required: true },
   { key: 'name', label: 'Наименование', required: true },
   { key: 'price', label: 'Цена', required: true },
+  { key: 'currency', label: 'Валюта', required: true },
   { key: 'unit', label: 'Ед. изм.' },
 ];
 
@@ -36,8 +40,25 @@ const statusLabels: Record<string, string> = {
 export default function PricelistsPage() {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
-  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
-  const [showWizard, setShowWizard] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const initialSupplier = searchParams.get('supplier') ? Number(searchParams.get('supplier')) : null;
+  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(initialSupplier);
+  const [showWizard, setShowWizard] = useState(!!initialSupplier);
+  const [initialPricelistId, setInitialPricelistId] = useState<number | undefined>();
+
+  
+  const [compareArticle, setCompareArticle] = useState<string | null>(null);
+
+  // Очистка параметра URL при закрытии wizard, чтобы при возврате не открывался снова
+  const handleCloseWizard = () => {
+    setShowWizard(false);
+    setInitialPricelistId(undefined);
+    if (searchParams.has('supplier')) {
+        searchParams.delete('supplier');
+        setSearchParams(searchParams);
+    }
+  };
 
   const { data: suppliersData } = useQuery({
     queryKey: ['suppliers', '', 1],
@@ -54,11 +75,13 @@ export default function PricelistsPage() {
 
   const handleWizardComplete = () => {
     setShowWizard(false);
+    setInitialPricelistId(undefined);
     queryClient.invalidateQueries({ queryKey: ['pricelists'] });
+    queryClient.invalidateQueries({ queryKey: ['globalPositions'] });
     message.success('Прайс-лист обработан!');
   };
 
-  const columns = [
+  const fileColumns = [
     {
       title: 'Файл',
       dataIndex: 'original_filename',
@@ -92,6 +115,42 @@ export default function PricelistsPage() {
       width: 160,
       render: (date: string) => dayjs(date).format('DD.MM.YYYY HH:mm'),
     },
+    {
+      title: 'Действия',
+      key: 'actions',
+      width: 180,
+      render: (_: any, record: PriceList) => (
+        <Space>
+          {['uploaded', 'error'].includes(record.status) && (
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => {
+                setInitialPricelistId(record.id);
+                setShowWizard(true);
+              }}
+            >
+              Продолжить
+            </Button>
+          )}
+          <Button
+            danger
+            size="small"
+            onClick={async () => {
+              try {
+                await pricelistsApi.delete(record.id);
+                queryClient.invalidateQueries({ queryKey: ['pricelists'] });
+                message.success('Файл удален');
+              } catch (err) {
+                message.error('Ошибка при удалении');
+              }
+            }}
+          >
+            Удалить
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   if (showWizard && selectedSupplier) {
@@ -105,23 +164,24 @@ export default function PricelistsPage() {
           </p>
         </div>
         <Button
-          onClick={() => setShowWizard(false)}
+          onClick={handleCloseWizard}
           style={{ marginBottom: 16 }}
         >
           ← Назад к списку
         </Button>
         <UploadWizard
+          initialPricelistId={initialPricelistId}
           fields={pricelistFields}
           onUpload={async (file) => {
             const res = await pricelistsApi.upload(selectedSupplier, file);
             return res.data.id;
           }}
-          onPreview={async (id) => {
-            const res = await pricelistsApi.preview(id);
+          onPreview={async (id, startRow, startCol) => {
+            const res = await pricelistsApi.preview(id, startRow, startCol);
             return res.data;
           }}
-          onParse={async (id, mapping) => {
-            await pricelistsApi.parse(id, mapping);
+          onParse={async (id, mapping, startRow, startCol) => {
+            await pricelistsApi.parse(id, mapping, startRow, startCol);
           }}
           onStatus={async (id) => {
             const res = await pricelistsApi.status(id);
@@ -133,57 +193,94 @@ export default function PricelistsPage() {
     );
   }
 
+  const handleSupplierChange = (val: number | null) => {
+    setSelectedSupplier(val);
+    if (!val && searchParams.has('supplier')) {
+       searchParams.delete('supplier');
+       setSearchParams(searchParams);
+    }
+  }
+
   return (
     <div className="fade-in">
       <div className="page-header">
         <h1>Прайс-листы</h1>
-        <p>Загрузка и управление прайс-листами поставщиков</p>
+        <p>Глобальная база товаров и управление загрузками файлов от поставщиков</p>
       </div>
 
       <Card className="content-card">
         <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
-          <Select
-            style={{ width: 320 }}
-            placeholder="Выберите поставщика"
-            value={selectedSupplier}
-            onChange={setSelectedSupplier}
-            options={suppliersData?.map((s: Supplier) => ({
-              value: s.id,
-              label: `${s.name} (${s.inn})`,
-            }))}
-            showSearch
-            filterOption={(input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-            allowClear
-          />
-          {selectedSupplier && (
-            <Button
-              type="primary"
-              icon={<UploadOutlined />}
-              onClick={() => setShowWizard(true)}
-              style={{ borderRadius: 10 }}
-            >
-              Загрузить прайс
-            </Button>
-          )}
+          <Space align="center">
+            <span style={{ fontWeight: 500 }}>Поставщик:</span>
+            <Select
+                style={{ width: 320 }}
+                placeholder="Все поставщики"
+                value={selectedSupplier}
+                onChange={handleSupplierChange}
+                options={suppliersData?.map((s: Supplier) => ({
+                value: s.id,
+                label: `${s.name} (${s.inn})`,
+                }))}
+                showSearch
+                filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                allowClear
+            />
+          </Space>
         </Space>
 
-        {!selectedSupplier ? (
-          <Empty
-            description="Выберите поставщика для просмотра прайс-листов"
-            style={{ padding: '60px 0' }}
-          />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={pricelistsData?.results}
-            rowKey="id"
-            loading={isLoading}
-            pagination={false}
-          />
-        )}
+        <Tabs 
+           defaultActiveKey="items" 
+           items={[
+             {
+               key: 'items',
+               label: <span><DatabaseOutlined /> Товары</span>,
+               children: <PositionsTable supplier={selectedSupplier} onCompare={setCompareArticle} />
+             },
+             {
+               key: 'uploads',
+               label: <span><CloudUploadOutlined /> Загрузки</span>,
+               children: (
+                 <div style={{ marginTop: 16 }}>
+                    <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
+                        <Button
+                            type="primary"
+                            icon={<UploadOutlined />}
+                            onClick={() => {
+                                if (!selectedSupplier) {
+                                    message.warning('Сперва выберите поставщика слева сверху!');
+                                } else {
+                                    setShowWizard(true);
+                                }
+                            }}
+                            style={{ borderRadius: 10 }}
+                        >
+                            Новая загрузка
+                        </Button>
+                    </Space>
+                    {!selectedSupplier ? (
+                    <Empty
+                        description="Выберите поставщика для просмотра истории загрузок файлов"
+                        style={{ padding: '60px 0' }}
+                    />
+                    ) : (
+                    <Table
+                        columns={fileColumns}
+                        dataSource={pricelistsData?.results}
+                        rowKey="id"
+                        loading={isLoading}
+                        pagination={false}
+                    />
+                    )}
+                 </div>
+               )
+             }
+           ]}
+        />
       </Card>
+      
+      <CompareModal article={compareArticle} onClose={() => setCompareArticle(null)} />
     </div>
   );
 }

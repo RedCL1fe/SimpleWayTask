@@ -88,12 +88,12 @@ export default function ProjectDetailPage() {
             const res = await estimatesApi.upload(projectId, file);
             return res.data.id;
           }}
-          onPreview={async (id) => {
-            const res = await estimatesApi.preview(id);
+          onPreview={async (id, startRow, startCol) => {
+            const res = await estimatesApi.preview(id, startRow, startCol);
             return res.data;
           }}
-          onParse={async (id, mapping) => {
-            await estimatesApi.parse(id, mapping);
+          onParse={async (id, mapping, startRow, startCol) => {
+            await estimatesApi.parse(id, mapping, startRow, startCol);
           }}
           onStatus={async (id) => {
             const res = await estimatesApi.status(id);

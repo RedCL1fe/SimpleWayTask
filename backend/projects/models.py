@@ -2,7 +2,7 @@ from django.db import models
 
 
 class Project(models.Model):
-    """Проект — контейнер для смет."""
+    # Проект контейнер для смет
 
     name = models.CharField(max_length=255, verbose_name="Название проекта")
     description = models.TextField(blank=True, verbose_name="Описание")
@@ -19,7 +19,7 @@ class Project(models.Model):
 
 
 class Estimate(models.Model):
-    """Смета проекта — загружается из Excel, содержит позиции."""
+    # Смета проекта загружается из Excel, содержит позиции
 
     STATUS_CHOICES = [
         ("uploaded", "Загружена"),
@@ -49,6 +49,8 @@ class Estimate(models.Model):
         blank=True,
         verbose_name="Маппинг колонок",
     )
+    start_row = models.IntegerField(default=1, verbose_name="Стартовая строка")
+    start_column = models.IntegerField(default=1, verbose_name="Стартовая колонка")
     total_rows = models.IntegerField(default=0)
     processed_rows = models.IntegerField(default=0)
     error_message = models.TextField(blank=True)
@@ -71,7 +73,7 @@ class Estimate(models.Model):
 
 
 class EstimatePosition(models.Model):
-    """Позиция сметы — основная строка для сопоставления с каталогом."""
+    # Позиция сметы  основная строка для сопоставления с каталогом
 
     MATCH_TYPE_CHOICES = [
         ("none", "Не сопоставлено"),
@@ -109,6 +111,10 @@ class EstimatePosition(models.Model):
     )
     confidence = models.FloatField(
         null=True, blank=True, verbose_name="Уверенность (0.0–1.0)"
+    )
+    image = models.ImageField(
+        upload_to="estimates/positions/", null=True, blank=True, 
+        verbose_name="Фото позиции"
     )
     match_type = models.CharField(
         max_length=10,

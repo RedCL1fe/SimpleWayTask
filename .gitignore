@@ -35,5 +35,12 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Docker
 *.log
+
+# Interview Prep Files
+*.doc
+*.docx
+Отчет*.md
+Вопросы*.md
+export_*.py
+

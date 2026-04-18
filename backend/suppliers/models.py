@@ -2,7 +2,7 @@ from django.db import models
 
 
 class Supplier(models.Model):
-    """Поставщик — основной владелец прайс-листов."""
+    # Поставщик
 
     name = models.CharField(max_length=255, verbose_name="Название")
     inn = models.CharField(max_length=12, unique=True, verbose_name="ИНН")
@@ -13,7 +13,7 @@ class Supplier(models.Model):
     email = models.EmailField(blank=True, verbose_name="Email")
     currency = models.CharField(
         max_length=3,
-        choices=[("RUB", "₽ Рубль"), ("USD", "$ Доллар"), ("EUR", "€ Евро")],
+        choices=[("RUB", "₽ Рубль"), ("USD", "$ Доллар"), ("EUR", "€ Евро"), ("CNY", "¥ Юань")],
         default="RUB",
         verbose_name="Валюта",
     )

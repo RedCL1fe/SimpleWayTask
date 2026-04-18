@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "pricelists.apps.PricelistsConfig",
     "catalog.apps.CatalogConfig",
     "projects.apps.ProjectsConfig",
+    "core.apps.CoreConfig",
 ]
 
 
@@ -42,6 +43,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "price_system.middleware.EnsureCSRFCookieMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -130,13 +132,41 @@ REST_FRAMEWORK = {
 }
 
 
-# --- CORS ---
+# --- CORS & Security ---
 
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Базовые настройки безопасности
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+
+# Настройки для Production
+if not DEBUG:
+    # Защита Cookie
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    
+    # HSTS (HTTP Strict Transport Security)
+    SECURE_HSTS_SECONDS = 31536000  # 1 год
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # SSL редирект (включать осторожно: если Nginx уже делает HTTPS,
+    # нужно использовать SECURE_PROXY_SSL_HEADER)
+    SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "False") == "True"
+    
+    # Если перед Django стоит Nginx/LoadBalancer, раскомментируйте:
+    # SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # --- Celery ---
@@ -157,3 +187,13 @@ MATCH_THRESHOLD = int(os.environ.get("MATCH_THRESHOLD", "75"))
 # --- Default PK ---
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# --- Test Mode ---
+# Когда запускается pytest, Celery работает синхронно (без Redis).
+import sys
+if "pytest" in sys.modules or "pytest" in " ".join(sys.argv):
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"

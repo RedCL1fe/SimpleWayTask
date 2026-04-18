@@ -5,7 +5,7 @@ from .serializers import ProductSerializer, ProductShortSerializer
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    """CRUD каталога товаров с поиском по артикулу и названию."""
+    #CRUD каталога товаров с поиском по артикулу и названию
 
     queryset = Product.objects.all()
     serializer_class = ProductSerializer

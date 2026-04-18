@@ -27,9 +27,15 @@ export default function AppLayout() {
   return (
     <Layout className="app-layout">
       <Header className="app-header">
-        <div className="app-logo">
-          <div className="app-logo-icon">📊</div>
-          <span>PriceSystem</span>
+        <div className="app-logo" style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ backgroundColor: 'white', padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', marginRight: '10px' }}>
+            <img 
+              src="https://optim.tildacdn.com/tild3630-3062-4433-b737-613336643064/-/resize/566x/-/format/webp/Logo_24x.png.webp" 
+              alt="Logo" 
+              style={{ height: '20px' }} 
+            />
+          </div>
+          <span>| Test Task</span>
         </div>
       </Header>
       <Layout>

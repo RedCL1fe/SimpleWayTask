@@ -19,7 +19,7 @@ from .tasks import parse_estimate_task, auto_match_estimate_positions
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    """CRUD проектов."""
+    # CRUD проектов
 
     serializer_class = ProjectSerializer
     search_fields = ["name"]
@@ -35,10 +35,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 
 class EstimateViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet для смет.
-    Поддерживает: list, retrieve, upload, preview, parse, status, auto-match, manual match.
-    """
+    
+   # ViewSet для смет.
+   
+   
 
     serializer_class = EstimateSerializer
     filterset_fields = ["project", "status"]
@@ -57,7 +57,7 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], parser_classes=[MultiPartParser])
     def upload(self, request):
-        """Загрузка Excel-файла сметы."""
+        # Загрузка эксель файла сметы
         serializer = EstimateUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -75,19 +75,24 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def preview(self, request, pk=None):
-        """Превью: первые 50 строк + список колонок."""
+        # первые 10 строк и список колонок
         estimate = self.get_object()
 
         try:
             file_path = estimate.original_file.path
+            start_row = int(request.query_params.get("start_row", 1))
+            header_row = start_row - 1 if start_row > 0 else 0
+
             engine = "xlrd" if file_path.endswith(".xls") else "openpyxl"
-            df = pd.read_excel(file_path, engine=engine, dtype=str, nrows=50)
+            # Для превью читаем с учетом заголовков
+            df = pd.read_excel(file_path, engine=engine, dtype=str, skiprows=header_row, nrows=50)
             df = df.fillna("")
 
             return Response({
                 "columns": list(df.columns),
                 "rows": df.values.tolist(),
                 "total_preview_rows": len(df),
+                "start_row": start_row,
             })
         except Exception as exc:
             return Response(
@@ -97,7 +102,7 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def parse(self, request, pk=None):
-        """Запуск парсинга сметы."""
+        # Запуск парсинга сметы
         estimate = self.get_object()
 
         if estimate.status in ("processing", "done"):
@@ -110,6 +115,8 @@ class EstimateViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         estimate.mapping_config = serializer.validated_data["mapping"]
+        estimate.start_row = serializer.validated_data["start_row"]
+        estimate.start_column = serializer.validated_data["start_column"]
         estimate.status = "processing"
         estimate.error_message = ""
         estimate.processed_rows = 0
@@ -125,7 +132,7 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="status")
     def parse_status(self, request, pk=None):
-        """Статус парсинга для polling."""
+        # Статус парсинга для пулинга
         estimate = self.get_object()
         return Response({
             "status": estimate.status,
@@ -137,7 +144,7 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="auto-match")
     def auto_match(self, request, pk=None):
-        """Запуск автоматического AI-сопоставления."""
+        # Запуск автоматического ии сопоставления#
         estimate = self.get_object()
 
         if estimate.status != "done":
@@ -151,7 +158,7 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def positions(self, request, pk=None):
-        """Список позиций сметы с информацией о сопоставлении."""
+        # Список позиций сметы с информацией о сопоставлении
         estimate = self.get_object()
         positions = estimate.positions.select_related("matched_product").all()
 
@@ -165,14 +172,14 @@ class EstimateViewSet(viewsets.ModelViewSet):
 
 
 class EstimatePositionViewSet(viewsets.GenericViewSet):
-    """Ручное сопоставление отдельной позиции сметы."""
+    # Ручное сопоставление отдельной позиции сметы
 
     queryset = EstimatePosition.objects.all()
     serializer_class = EstimatePositionSerializer
 
     @action(detail=True, methods=["patch"])
     def match(self, request, pk=None):
-        """Ручное сопоставление позиции с товаром каталога."""
+        # Ручное сопоставление позиции с товаром каталога
         position = self.get_object()
         serializer = ManualMatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

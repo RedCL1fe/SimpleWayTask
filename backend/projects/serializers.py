@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from core.file_validators import validate_excel_file
 from .models import Project, Estimate, EstimatePosition
 
 
@@ -43,6 +44,8 @@ class EstimateSerializer(serializers.ModelSerializer):
             "original_filename",
             "status",
             "mapping_config",
+            "start_row",
+            "start_column",
             "total_rows",
             "processed_rows",
             "progress",
@@ -68,15 +71,13 @@ class EstimateUploadSerializer(serializers.Serializer):
         return value
 
     def validate_file(self, value):
-        allowed = [".xlsx", ".xls"]
-        ext = value.name.rsplit(".", 1)[-1].lower() if "." in value.name else ""
-        if f".{ext}" not in allowed:
-            raise serializers.ValidationError("Поддерживаются только .xlsx и .xls")
-        return value
+        return validate_excel_file(value)
 
 
 class EstimateParseSerializer(serializers.Serializer):
     mapping = serializers.DictField(child=serializers.CharField())
+    start_row = serializers.IntegerField(default=1)
+    start_column = serializers.IntegerField(default=1)
 
 
 class ManualMatchSerializer(serializers.Serializer):

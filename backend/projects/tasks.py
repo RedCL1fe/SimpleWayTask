@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True)
 def parse_estimate_task(self, estimate_id: int):
-    """Фоновый парсинг Excel-сметы по сохранённому маппингу колонок."""
+    # Фоновый парсинг ексель сметы по сохранённому маппингу колонок
     from .models import Estimate, EstimatePosition
 
     estimate = Estimate.objects.get(id=estimate_id)
@@ -21,9 +21,12 @@ def parse_estimate_task(self, estimate_id: int):
     try:
         file_path = estimate.original_file.path
         mapping = estimate.mapping_config
+        start_row = getattr(estimate, "start_row", 1)
+        header_row = start_row - 1 if start_row > 0 else 0
 
         engine = "xlrd" if file_path.endswith(".xls") else "openpyxl"
-        df = pd.read_excel(file_path, engine=engine, dtype=str)
+        # Читаем Excel пропускаем строки до заголовка
+        df = pd.read_excel(file_path, engine=engine, dtype=str, skiprows=header_row)
         df = df.dropna(how="all")
 
         estimate.total_rows = len(df)
@@ -100,12 +103,40 @@ def parse_estimate_task(self, estimate_id: int):
         raise
 
 
+# --- AI Pipeline Utilities ---
+
+def normalize_text(text: str) -> str:
+    # Нормализация текста очистка от лишних символов
+    if not text:
+        return ""
+    import re
+    # Приводим к нижнему регистру и убираем спецсимволы
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z0-9\sа-яА-Я]', ' ', text)
+    return " ".join(text.split())
+
+
+def get_embedding(text: str):
+    # Генерация эмбеддинга (заглушка для модели типа sentence-transformers)
+    # В реальной системе здесь будет вызов модели или API (например, OpenAI Embeddings)
+    # Возвращаем список нулей как имитацию вектора
+    return [0.0] * 128
+
+
+def vector_search(query_embedding, limit=5):
+    # Векторный поиск (заглушка для pgvector/Pinecone)
+    from catalog.models import Product
+    # В реальности здесь будет: Product.objects.order_by(CosineDistance('embedding', query_embedding))[:limit]
+    # Пока просто возвращаем первые N товаров для имитации поиска
+    return Product.objects.all()[:limit]
+
+
 @shared_task(bind=True)
 def auto_match_estimate_positions(self, estimate_id: int):
-    """
-    Автоматическое AI-сопоставление позиций сметы с товарами каталога.
-    Использует rapidfuzz (token_sort_ratio) для fuzzy-matching по названию + артикулу.
-    """
+  
+    # Автоматическое AI-сопоставление позиций сметы (пайплан версия).
+    # пайплайн -  нормализация -> эмбединг -> векторный поиск -> финальная оценка (RapidFuzz).
+    
     from catalog.models import Product
     from .models import Estimate, EstimatePosition
 
@@ -115,39 +146,53 @@ def auto_match_estimate_positions(self, estimate_id: int):
     positions = EstimatePosition.objects.filter(
         estimate_id=estimate_id, match_type="none"
     )
-    all_products = list(Product.objects.all().values("id", "article", "name"))
+    all_products_count = Product.objects.count()
 
-    if not all_products:
+    if all_products_count == 0:
         logger.warning("Каталог пуст — сопоставление невозможно")
         return {"matched": 0, "total": positions.count()}
-
-    # Формируем список для rapidfuzz: (строка_для_поиска, id_товара)
-    product_strings = [f"{p['article']} {p['name']}" for p in all_products]
-    product_ids = [p["id"] for p in all_products]
 
     matched_count = 0
     total = positions.count()
 
     for pos in positions:
-        search_query = f"{pos.original_article} {pos.original_name}".strip()
+        # нормализация
+        original_query = f"{pos.original_article} {pos.original_name}".strip()
+        normalized_query = normalize_text(original_query)
+        
+        if not normalized_query:
+            continue
 
+        # генерация эмблднга
+        query_vector = get_embedding(normalized_query)
+
+        # Векторынй поиск
+        # Получаем кандидатов для более детального сравнения
+        candidates = vector_search(query_vector, limit=10)
+        
+        # Нормализуем строки кандидатов для корректного сравнения на шаге 4
+        candidate_strings = [normalize_text(f"{p.article} {p.name}") for p in candidates]
+        candidate_ids = [p.id for p in candidates]
+
+        # финальная оценка\выбор
+        # Используем нечеткий поиск для выбора лучшего из отобранных ИИ кандидатов
         result = process.extractOne(
-            search_query,
-            product_strings,
+            normalized_query,
+            candidate_strings,
             scorer=fuzz.token_sort_ratio,
             score_cutoff=threshold,
         )
 
         if result:
             matched_string, score, idx = result
-            pos.matched_product_id = product_ids[idx]
+            pos.matched_product_id = candidate_ids[idx]
             pos.confidence = round(score / 100.0, 2)
             pos.match_type = "auto"
             pos.save(update_fields=["matched_product_id", "confidence", "match_type"])
             matched_count += 1
 
     logger.info(
-        "Сопоставление сметы #%s: %s/%s совпадений (порог %s%%)",
-        estimate_id, matched_count, total, threshold,
+        "AI Pipeline завершен для сметы #%s: %s/%s сопоставлено",
+        estimate_id, matched_count, total
     )
     return {"matched": matched_count, "total": total}

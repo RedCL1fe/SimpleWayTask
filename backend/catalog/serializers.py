@@ -11,7 +11,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class ProductShortSerializer(serializers.ModelSerializer):
-    """Краткий сериализатор для dropdown-ов (сопоставление)."""
+    # Краткий сериализатор для выпад. списков
 
     label = serializers.SerializerMethodField()
 

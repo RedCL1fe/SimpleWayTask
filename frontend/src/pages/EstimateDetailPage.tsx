@@ -155,23 +155,36 @@ export default function EstimateDetailPage() {
     {
       title: 'Сопоставление',
       key: 'matching',
-      width: 280,
+      width: 320,
       render: (_: any, record: EstimatePosition) => (
-        <Select
-          style={{ width: '100%' }}
-          placeholder="Выберите товар..."
-          value={record.matched_product || undefined}
-          onChange={(val) =>
-            manualMatchMutation.mutate({ posId: record.id, productId: val ?? null })
-          }
-          options={productOptions}
-          showSearch
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          allowClear
-          size="small"
-        />
+        <Space size="small" style={{ width: '100%' }}>
+          <Select
+            style={{ flex: 1, minWidth: 200 }}
+            placeholder="Выберите товар..."
+            value={record.matched_product || undefined}
+            onChange={(val) =>
+              manualMatchMutation.mutate({ posId: record.id, productId: val ?? null })
+            }
+            options={productOptions}
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            allowClear
+            size="small"
+          />
+          {record.match_type !== 'none' && (
+            <Tooltip title="Сбросить сопоставление">
+              <Button 
+                type="text" 
+                danger 
+                size="small" 
+                icon={<CloseCircleOutlined />} 
+                onClick={() => manualMatchMutation.mutate({ posId: record.id, productId: null })}
+              />
+            </Tooltip>
+          )}
+        </Space>
       ),
     },
     {
@@ -266,7 +279,9 @@ export default function EstimateDetailPage() {
           scroll={{ x: 1400 }}
           rowClassName={(record: EstimatePosition) => {
             if (record.match_type === 'manual') return 'row-matched-manual';
-            if (record.match_type === 'auto') return 'row-matched-auto';
+            if (record.match_type === 'auto') {
+              return (record.confidence || 0) >= 0.8 ? 'row-matched-auto' : 'row-matched-low';
+            }
             return 'row-unmatched';
           }}
           pagination={{

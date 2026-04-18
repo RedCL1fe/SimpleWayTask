@@ -10,6 +10,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { catalogApi } from '../api/catalog';
 import type { Product } from '../types';
+import CompareModal from '../components/CompareModal';
 
 export default function CatalogPage() {
   const { message } = App.useApp();
@@ -18,6 +19,7 @@ export default function CatalogPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [compareArticle, setCompareArticle] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const { data, isLoading } = useQuery({
@@ -100,7 +102,11 @@ export default function CatalogPage() {
       title: 'Наименование',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string) => <strong>{name}</strong>,
+      render: (name: string, record: Product) => (
+        <a onClick={(e) => { e.preventDefault(); setCompareArticle(record.article); }} title="Посмотреть цены у поставщиков">
+          <strong>{name}</strong>
+        </a>
+      ),
     },
     { title: 'Ед. изм.', dataIndex: 'unit', key: 'unit', width: 100 },
     {
@@ -117,13 +123,15 @@ export default function CatalogPage() {
       width: 120,
       render: (_: any, record: Product) => (
         <Space>
-          <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(record)} />
-          <Popconfirm
-            title="Удалить товар?"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          <Button type="text" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); openEdit(record); }} />
+          <div onClick={e => e.stopPropagation()}>
+            <Popconfirm
+              title="Удалить товар?"
+              onConfirm={() => deleteMutation.mutate(record.id)}
+            >
+              <Button type="text" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </div>
         </Space>
       ),
     },
@@ -174,6 +182,10 @@ export default function CatalogPage() {
           dataSource={data?.results}
           rowKey="id"
           loading={isLoading}
+          onRow={(record) => ({
+            onClick: () => setCompareArticle(record.article),
+            style: { cursor: 'pointer' }
+          })}
           pagination={{
             current: page,
             total: data?.count,
@@ -226,6 +238,8 @@ export default function CatalogPage() {
           </Row>
         </Form>
       </Modal>
+
+      <CompareModal article={compareArticle} onClose={() => setCompareArticle(null)} />
     </div>
   );
 }

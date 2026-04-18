@@ -1,116 +1,116 @@
-# 📊 Система работы с прайс-листами и сметами
+# 🏢 AI Price Management System & Estimate Matcher
 
-Полноценное веб-приложение для управления поставщиками, прайс-листами, каталогом товаров, проектами и сметами с AI-сопоставлением позиций.
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
+![Django](https://img.shields.io/badge/Django-5.1-092E20?logo=django)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-316192?logo=postgresql)
+![Celery](https://img.shields.io/badge/Celery-5.4-37814A?logo=celery)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
 
-## Стек технологий
+Полноценная B2B веб-платформа для автоматизации документооборота, управления базами поставщиков и AI-сопоставления строительных смет с использованием нечеткой логики и алгоритмов машинного обучения.
 
-| Компонент | Технология |
-|---|---|
-| Backend | Django 5.1 + Django REST Framework |
-| Frontend | React 18 + TypeScript + Vite + Ant Design 5 |
-| Database | PostgreSQL 16 |
-| Task Queue | Celery 5 + Redis 7 |
-| Excel | pandas + openpyxl |
-| AI Matching | rapidfuzz (fuzzy matching) |
-| Containerization | Docker + Docker Compose |
+Проект создан для полного замещения рутинных процессов, основанных на обработке "грязных" Excel-файлов, и обеспечивает централизованную работу нескольких пользователей.
 
-## Быстрый старт
+---
 
-### Требования
+## ✨ Ключевые возможности (Features)
 
-- Docker Desktop
-- Docker Compose
+*   🧠 **AI-Сопоставление (RAG Architecture Pipeline):**
+    *   Сложный алгоритм нормализации "грязных" позиций из клиентских смет.
+    *   Реранкинг (Reranking) на основе `RapidFuzz` (расстояние Левенштейна) для точного сопоставления с базой номенклатуры.
+    *   Система индикации уверенности ИИ (Confidence thresholds: High >80%, Medium 50-80%, Low < 50%).
+*   🚀 **High-Performance асинхронный парсинг:**
+    *   Обработка тяжелых Excel-файлов (тысячи строк) в фоновом режиме через **Celery + Redis**.
+    *   Применение `pandas` с оптимизацией потребления памяти.
+    *   Использование `bulk_create` для устранения N+1 проблем при сохранении в базу.
+*   📊 **Динамический UI-маппинг:**
+    *   Интерактивный мастер загрузки (Upload Wizard) на React.
+    *   Живое превью данных (чтение первых 50 строк) перед полным парсингом.
+    *   Кастомный выбор start_row / start_column прямо из интерфейса.
+*   🛡️ **Hardened Security & Аудит:**
+    *   MIME-type File validation (защита от маскировки расширений `.exe` -> `.xlsx`).
+    *   Автоматический лог аудита (`ChangeLog`) через Django Signals (pre_save/post_save).
+    *   Полностью изолированная внутренняя Docker-сеть баз данных.
 
-### Запуск
+---
 
-```bash
-# 1. Клонировать репозиторий и перейти в папку
-cd test_simple_way
+## 🏛️ Архитектура
 
-# 2. Запустить все сервисы
-docker compose up --build
-
-# 3. Приложение доступно:
-# Frontend:  http://localhost:5173
-# Backend:   http://localhost:8000/api/
-# Admin:     http://localhost:8000/admin/
+```mermaid
+graph LR
+    User([Пользователь]) --> Nginx[React Frontend<br/>Nginx]
+    Nginx --> Gunicorn[Django DRF API]
+    Gunicorn --> DB[(PostgreSQL)]
+    Gunicorn --> Broker((Redis))
+    Broker --> Celery[Celery Worker]
+    Celery <--> DB
+    Celery --> Pandas[Pandas Parser<br/>& AI Matcher]
+    Pandas --> S3[Media Files storage]
 ```
 
-### Создание суперпользователя (для Django Admin)
+### Структура монолита (Django Apps)
+*   `core` — Базовые абстракции, аудит логов, защитные file validators, кастомная пагинация.
+*   `pricelists` / `suppliers` — Управление контрагентами и загруженными прайс-листами.
+*   `projects` — Модуль загрузки смет (Estimates), вызова AI-алгоритма матчинга.
+*   `catalog` — Глобальная "идеальная" номенклатура компании.
 
+---
+
+## 🚀 Быстрый старт (Local Development)
+
+### Требования
+*   Docker & Docker Compose
+*   Git
+
+### Развертывание
+
+1. **Склонируйте репозиторий:**
+```bash
+git clone https://github.com/your-username/test_simple_way.git
+cd test_simple_way
+```
+
+2. **Запустите Docker Compose** (поднимет 5 изолированных контейнеров):
+```bash
+docker compose up -d --build
+```
+
+3. **Создайте Суперпользователя** (для админ-панели):
 ```bash
 docker compose exec backend python manage.py createsuperuser
 ```
 
-## Архитектура
+**🌐 Доступные интерфейсы:**
+*   Frontend (React UI): http://localhost:5173
+*   Backend REST API: http://localhost:8000/api/
+*   Django Admin: http://localhost:8000/admin/
 
-```
-├── backend/
-│   ├── price_system/    # Django project (settings, celery, urls)
-│   ├── suppliers/       # Приложение «Поставщики»
-│   ├── pricelists/      # Приложение «Прайс-листы»
-│   ├── catalog/         # Приложение «Каталог товаров»
-│   ├── projects/        # Приложение «Проекты и сметы»
-│   └── core/            # Общие утилиты
-├── frontend/
-│   └── src/
-│       ├── pages/       # Страницы приложения
-│       ├── components/  # UI-компоненты
-│       ├── api/         # API-клиент
-│       └── types/       # TypeScript типы
-└── docker-compose.yml
+---
+
+## 🧪 Тестирование
+
+Бэкенд покрыт тестами (pytest + pytest-django). Система тестов автоматически использует `CELERY_TASK_ALWAYS_EAGER=True` для мокирования брокера и `--reuse-db` для ускорения.
+
+Запуск тестового набора внутри изолированного контейнера:
+```bash
+docker compose run --rm backend python -m pytest -v
 ```
 
-## Функциональность
+---
 
-### 1. Поставщики
-- CRUD с поиском по названию и ИНН
-- Привязка прайс-листов к поставщику
+## 💻 Tech Stack (Подробно)
 
-### 2. Прайс-листы
-- Загрузка Excel (.xlsx, .xls)
-- Превью данных перед парсингом
-- Гибкая настройка маппинга колонок
-- Фоновый парсинг через Celery с прогресс-баром
+| Уровень | Технологии |
+| :--- | :--- |
+| **Backend Framework** | Django 5.1, DRF |
+| **Backend Language** | Python 3.12 |
+| **Background Processing**| Celery 5.4 |
+| **Message Broker** | Redis 7 (с аутентификацией) |
+| **Database** | PostgreSQL 16 (с индексацией `db_index`) |
+| **Data Science / ETL** | pandas, RapidFuzz |
+| **Frontend** | React 18, TypeScript, Vite |
+| **State & UI** | TanStack Query (React Query), Ant Design 5.x |
+| **Testing** | Pytest, Faker, MagicMock |
 
-### 3. Каталог товаров
-- CRUD товаров (артикул, название, ед. изм., группа)
-- Поиск и фильтрация
-
-### 4. Проекты и сметы
-- Проекты содержат сметы
-- Загрузка сметы из Excel с маппингом колонок
-- Расширенный набор полей: кол-во, цена материалов, цена монтажа
-
-### 5. AI-сопоставление
-- Автоматическое сопоставление позиций сметы с товарами каталога
-- Алгоритм: rapidfuzz token_sort_ratio (fuzzy matching)
-- Порог совпадения: 75% (настраивается через MATCH_THRESHOLD)
-- Цветовая индикация:
-  - 🟢 > 80% — высокая уверенность
-  - 🟡 50–80% — средняя
-  - 🔴 < 50% — низкая
-- Ручное сопоставление через dropdown
-
-## API Endpoints
-
-| Группа | URL | Описание |
-|---|---|---|
-| Поставщики | `/api/suppliers/` | CRUD + поиск |
-| Прайсы | `/api/pricelists/` | CRUD + upload/preview/parse/status |
-| Каталог | `/api/catalog/products/` | CRUD + поиск |
-| Проекты | `/api/projects/` | CRUD |
-| Сметы | `/api/projects/estimates/` | CRUD + upload/preview/parse/auto-match |
-| Позиции | `/api/projects/estimate-positions/` | Ручное сопоставление |
-
-## Переменные окружения
-
-Настраиваются в файле `.env`:
-
-| Переменная | Описание | По умолчанию |
-|---|---|---|
-| `POSTGRES_DB` | Имя БД | price_system |
-| `POSTGRES_USER` | Пользователь | postgres |
-| `POSTGRES_PASSWORD` | Пароль | postgres |
-| `DJANGO_SECRET_KEY` | Секретный ключ | dev key |
-| `MATCH_THRESHOLD` | Порог AI-сопоставления (%) | 75 |
+---
+*Developed with focus on production-ready architecture, scalability, and code maintainability.*

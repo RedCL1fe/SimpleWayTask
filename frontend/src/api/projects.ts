@@ -38,11 +38,20 @@ export const estimatesApi = {
     });
   },
 
-  preview: (id: number) =>
-    apiClient.get<PreviewData>(`/projects/estimates/${id}/preview/`),
+  preview: (id: number, startRow: number = 1, startColumn: number = 1) =>
+    apiClient.get<PreviewData>(`/projects/estimates/${id}/preview/`, { 
+        params: { 
+            start_row: startRow,
+            start_column: startColumn
+        } 
+    }),
 
-  parse: (id: number, mapping: Record<string, string>) =>
-    apiClient.post(`/projects/estimates/${id}/parse/`, { mapping }),
+  parse: (id: number, mapping: Record<string, string>, startRow: number = 1, startColumn: number = 1) =>
+    apiClient.post(`/projects/estimates/${id}/parse/`, { 
+      mapping, 
+      start_row: startRow, 
+      start_column: startColumn 
+    }),
 
   status: (id: number) =>
     apiClient.get<ParseStatus>(`/projects/estimates/${id}/status/`),

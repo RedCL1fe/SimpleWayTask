@@ -2,7 +2,7 @@ from django.db import models
 
 
 class PriceList(models.Model):
-    """Один загруженный прайс-лист поставщика."""
+    # один загруженный прайс-лист поставщика
 
     STATUS_CHOICES = [
         ("uploaded", "Загружен"),
@@ -32,6 +32,14 @@ class PriceList(models.Model):
         verbose_name="Маппинг колонок",
         help_text='Пример: {"article": "Колонка A", "name": "Колонка B", "price": "Колонка C"}',
     )
+    start_row = models.IntegerField(
+        default=1, verbose_name="Стартовая строка (с заголовками)",
+        help_text="Обычно 1. Если перед таблицей есть текст, укажите строку с заголовками колонок."
+    )
+    start_column = models.IntegerField(
+        default=1, verbose_name="Стартовая колонка",
+        help_text="Обычно 1 (Колонка A). Если таблица смещена вправо, укажите номер начальной колонки."
+    )
     total_rows = models.IntegerField(default=0, verbose_name="Всего строк")
     processed_rows = models.IntegerField(default=0, verbose_name="Обработано строк")
     error_message = models.TextField(blank=True, verbose_name="Сообщение об ошибке")
@@ -54,7 +62,7 @@ class PriceList(models.Model):
 
 
 class PriceListPosition(models.Model):
-    """Строка из распарсенного прайс-листа."""
+    # Строка из распарсенного прайс-листа
 
     price_list = models.ForeignKey(
         PriceList, on_delete=models.CASCADE, related_name="positions"
@@ -65,7 +73,11 @@ class PriceListPosition(models.Model):
     price = models.DecimalField(
         max_digits=12, decimal_places=2, verbose_name="Цена"
     )
+    currency = models.CharField(max_length=10, verbose_name="Валюта", blank=True)
     unit = models.CharField(max_length=50, blank=True, verbose_name="Ед. изм.")
+    additional_data = models.JSONField(
+        default=dict, blank=True, verbose_name="Доп. характеристики"
+    )
     matched_product = models.ForeignKey(
         "catalog.Product",
         null=True,
