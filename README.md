@@ -96,6 +96,10 @@ docker compose exec backend python manage.py createsuperuser
 docker compose run --rm backend python -m pytest -v
 ```
 
+<img width="1158" height="513" alt="image" src="https://github.com/user-attachments/assets/eece5f65-e224-47b4-83c7-346b7cc2aba8" />
+
+
+
 ---
 
 ## 💻 Tech Stack (Подробно)
